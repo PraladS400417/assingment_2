@@ -151,3 +151,104 @@ def _format_number(value: float) -> str:
     if value == int(value):
         return str(int(value))
     return f'{value:.4f}'
+
+
+
+# SINGLE-EXPRESSION EVALUATION (with per-stage error isolation)
+
+
+def _evaluate_one(expression: str) -> dict:
+  
+
+
+    record = {
+        'input':  expression,
+        'tree':   'ERROR',
+        'tokens': 'ERROR',
+        'result': 'ERROR',
+    }
+
+    # Stage 1: tokenise 
+    try:
+        tokens = tokenise(expression)
+        record['tokens'] = format_tokens(tokens)
+    except Exception:
+        return record           
+
+    # Stage 2: parse 
+    try:
+        tree = parse(tokens)
+        record['tree'] = tree_to_str(tree)
+    except Exception:
+        return record           
+
+    # Stage 3: evaluate 
+    try:
+        record['result'] = eval_tree(tree)
+    except Exception:
+        record['result'] = 'ERROR'
+
+    return record
+
+
+# FILE I/O
+
+
+def _write_output(output_path: str, results: list[dict]) -> None:
+   
+    # Write all result dicts to *output_path* using the required format:
+   
+    lines = []
+    for i, rec in enumerate(results):
+        if isinstance(rec['result'], float):
+            result_str = _format_number(rec['result'])
+        else:
+            result_str = rec['result']      # 'ERROR'
+
+        lines.append(f"Input: {rec['input']}")
+        lines.append(f"Tree: {rec['tree']}")
+        lines.append(f"Tokens: {rec['tokens']}")
+        lines.append(f"Result: {result_str}")
+
+        if i < len(results) - 1:
+            lines.append('')                # blank separator between blocks
+
+    with open(output_path, 'w', encoding='utf-8') as fh:
+        fh.write('\n'.join(lines) + '\n')
+
+
+def evaluate_file(input_path: str) -> list[dict]:
+   
+    input_path  = os.path.abspath(input_path)
+    output_path = os.path.join(os.path.dirname(input_path), 'output.txt')
+
+    with open(input_path, 'r', encoding='utf-8') as fh:
+        lines = fh.readlines()
+
+    results = [_evaluate_one(line.rstrip('\n')) for line in lines]
+    _write_output(output_path, results)
+    return results
+
+
+
+# SELF-TEST  (run with: python evaluator.py)
+
+if __name__ == '__main__':
+    import sys
+    import pathlib
+
+    if len(sys.argv) != 2:
+        print("Usage: python evaluator.py <input_file.txt>")
+        sys.exit(1)
+
+    input_path = pathlib.Path(sys.argv[1])
+
+    if not input_path.exists():
+        print(f"Error: file not found: {input_path}")
+        sys.exit(1)
+
+    results = evaluate_file(str(input_path))
+
+    output_path = input_path.parent / 'output.txt'
+    print(f"Processed {len(results)} expression(s).")
+    print(f"Results written to: {output_path}")
